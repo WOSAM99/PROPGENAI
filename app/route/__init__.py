@@ -32,40 +32,36 @@ def setup_routes(app: FastAPI):
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
-        # Get only the first error
-        if exc.errors():
-            error = exc.errors()[0]
-            field = error["loc"][-1] if error["loc"] else "unknown field"
-            error_message = f"{field} {error['msg']}".lower()
-        else:
-            error_message = "Validation error"
-        
-        return error_response(error_message, 422)
-    
-    @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(request: Request, exc: RequestValidationError):
         logger.error(f"Validation error: {exc.errors()}")
+        
         if exc.errors():
             error = exc.errors()[0]
-
-            # Prefer ctx['error'] if available
+            
+            # Get the field name from the error location
+            field_path = " -> ".join(str(loc) for loc in error.get("loc", []))
+            
+            # Get the error message
             if "ctx" in error and "error" in error["ctx"]:
-                raw_error = error["ctx"]["error"]
-                error_message = str(raw_error)
+                error_message = str(error["ctx"]["error"])
             else:
-                field = error["loc"][-1] if error["loc"] else "unknown field"
-                error_message = f"{field} {error['msg']}".lower()
-
+                error_type = error.get("type", "")
+                error_msg = error.get("msg", "")
+                error_message = f"{field_path}: {error_msg}"
+                
+                # Make the message more user-friendly
+                if error_type == "missing":
+                    error_message = f"Missing required field: {field_path}"
+                elif error_type == "type_error":
+                    error_message = f"Invalid type for field {field_path}: {error_msg}"
+            
+            logger.error(f"Validation error details: {error_message}")
+            return error_response(error_message, 422)
         else:
-            error_message = "Validation error"
-
-        logger.error(f"Validation error: {error_message}")
-
-        return error_response(error_message, 422)
-
+            return error_response("Request validation failed", 422)
 
     # Include all routes from the app
     app.include_router(test_router, prefix="/test", tags=["Test"])
     app.include_router(auth_router, prefix="/auth", tags=["Auth"])
     app.include_router(document_controller, prefix="/doc", tags=["Document"])
     app.include_router(chat_controller, prefix="/chat", tags=["Chat"])
+    

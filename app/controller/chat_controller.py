@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Request
 
 # Models
 from app.model.chat_model import ChatRequest, ChatResponse, SourceDocument
@@ -13,7 +13,6 @@ from app.utils.response import success_response, error_response # Assuming you h
 
 # Configure logging
 logger = logging.getLogger(__name__)
-# logging.basicConfig(level=logging.INFO) # Configure at application level if preferred
 
 router = APIRouter()
 
@@ -21,14 +20,17 @@ router = APIRouter()
             summary="Query the RAG pipeline to get an answer with optional filters and prompts.",
             response_model=ChatResponse,
             responses={
+                401: {"model": ErrorResponse, "description": "Unauthorized (Invalid or missing token)"},
+                403: {"model": ErrorResponse, "description": "Forbidden (Token valid but user lacks permissions)"},
                 422: {"model": ErrorResponse, "description": "Validation Error (e.g., invalid filter, bad request parameters)"},
                 500: {"model": ErrorResponse, "description": "Internal Server Error (e.g., LLM error, unexpected RAG pipeline error)"},
                 503: {"model": ErrorResponse, "description": "Service Unavailable (e.g., cannot connect to Vector DB)"}
-                # Add 404 if collection not found becomes a distinct error raised from rag.py, 
-                # currently handled by returning no docs or specific 503 for DB connection issues.
             }
 )
-async def query_rag_pipeline(request: ChatRequest = Body(...)):
+async def query_rag_pipeline(
+    request: ChatRequest = Body(...),
+    req: Request = None
+):
     """
     Receives a user query and other optional parameters, then queries the RAG pipeline.
 
@@ -39,7 +41,12 @@ async def query_rag_pipeline(request: ChatRequest = Body(...)):
     - **system_prompt**: An alternative system prompt to guide the LLM. If not provided, a default is used.
     """
     try:
-        logger.info(f"Received chat query for collection '{request.profile_id}': '{request.query}'")
+        # Get user_id from the JWT payload (set by middleware)
+        current_user_id = req.state.jwt_payload.get("user_id")
+        if not current_user_id:
+            raise HTTPException(status_code=403, detail="User ID missing in token")
+            
+        logger.info(f"Chat query request for user_id: {current_user_id}, profile_id: {request.profile_id}")
         
         rag_result = get_rag_response(
             query=request.query,
@@ -47,7 +54,7 @@ async def query_rag_pipeline(request: ChatRequest = Body(...)):
             k_retrieval=request.k_retrieval,
             retriever_filter=request.retriever_filter,
             custom_system_prompt=request.system_prompt
-        )
+        )   
 
         # Transform source_documents dicts to SourceDocument model instances if they exist
         source_docs_models = []

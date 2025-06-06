@@ -7,10 +7,7 @@ from .jwt_auth import JWTAuthMiddleware
 def setup_middlewares(app: FastAPI):
     """Apply all middlewares to the FastAPI app"""
     
-    # Add JWT authentication middleware first
-    app.add_middleware(JWTAuthMiddleware)
-    
-    # Add CORS middleware
+    # Add CORS middleware first
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,  # Configure this appropriately for production
@@ -18,6 +15,9 @@ def setup_middlewares(app: FastAPI):
         allow_methods=settings.CORS_METHODS,
         allow_headers=settings.CORS_HEADERS,
     )
+    
+    # Add JWT authentication middleware after CORS
+    app.add_middleware(JWTAuthMiddleware)
     
     # Add logging middleware last
     app.middleware("http")(log_requests_middleware)

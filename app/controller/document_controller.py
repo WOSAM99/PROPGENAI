@@ -5,6 +5,7 @@ import tempfile
 import io
 import uuid
 import hashlib
+import chromadb
 # import pymupdf # No longer directly used here, but indirectly by read_pdf
 from fastapi import APIRouter, UploadFile, HTTPException, File, Depends, Body, Form # Added Form
 from typing import List, Optional # Added Optional
@@ -27,7 +28,8 @@ from app.model.doc_model import (
     validate_pdf_bytes,
     validate_collection_name,
     DeleteCollectionRequest, # Added DeleteCollectionRequest
-    DeleteCollectionResponse # Added DeleteCollectionResponse
+    DeleteCollectionResponse, # Added DeleteCollectionResponse
+    DeleteFileRequest  # Add this new model
 )
 # Import for success_response
 from app.utils.response import success_response, error_response
@@ -39,56 +41,54 @@ logging.basicConfig(level=logging.INFO)
 
 router = APIRouter()
 
-@router.post("/upload", 
-            summary="Upload a document (PDF expected) and process it for embedding",
-            response_model=FileUploadResponse,
-            responses={
-                400: {"model": ErrorResponse, "description": "Bad Request (e.g., invalid file type, empty file)"},
-                422: {"model": ErrorResponse, "description": "Unprocessable Entity (e.g., PDF has no text, no chunks created)"},
-                500: {"model": ErrorResponse, "description": "Internal Server Error processing the file"}
-            }
+@router.post("/upload",
+            summary="Upload a document and create embeddings",
+            response_model=FileUploadResponse
 )
-async def upload_and_embed_document(file: UploadFile = File(...), profileID: str = Form(...)):
+async def upload_document(
+    file: UploadFile = File(...),
+    profileID: str = Form(...),  # Changed from Body to Form
+):
     try:
-        validate_uploaded_pdf(file)
-        if not profileID:
-            logger.error("profileID is required for document upload.")
-            return error_response("profileID is required.", 400)
+        # Validate the uploaded file
+        if not file.filename.lower().endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
+        # Generate a unique document ID
         document_id = str(uuid.uuid4())
-        collection_name = profileID
-        try:
-            validate_collection_name(collection_name)
-        except ValueError as e:
-            logger.error(f"Invalid collection name generated: {collection_name}", exc_info=True)
-            return error_response(f"Error generating valid collection name: {str(e)}", 500)
-        logger.info(f"Reading uploaded file into memory: {file.filename} for profileID: {profileID} (collection: {collection_name})")
+        
+        # Read and validate PDF content
         pdf_bytes = await file.read()
-        await file.close()
-        await validate_pdf_bytes(pdf_bytes, file.filename)
-        logger.info(f"Processing PDF bytes for: {file.filename}")
-        markdown_text = read_pdf(pdf_bytes)
-        logger.info(f"Markdown extracted for {file.filename}. Length: {len(markdown_text)}")
-        markdown_docs = [{"filename": file.filename, "markdown": markdown_text}]
-        logger.info(f"Successfully converted {file.filename} to markdown from bytes.")
-        chunks = chunk_by_headings(markdown_docs)
-        logger.info(f"Successfully chunked content from {file.filename} into {len(chunks)} chunks.")
-        collection = store_chunks_in_chromadb(chunks=chunks, collection_name=collection_name)
-        logger.info(f"Successfully embedded and stored document: {file.filename} in collection: {collection_name}")
-        response = FileUploadResponse(
-            document_id=document_id,
-            collection_id=collection_name,
-            status="processing",
-            filename=file.filename,
-            detail="Document uploaded and processing started",
-            chunks_created=len(chunks)
-        )
-        return success_response(response)
-    except HTTPException as e:
-        logger.error(f"HTTPException during document upload: {e.detail}", exc_info=True)
-        return error_response(str(e.detail), e.status_code)
+        if not validate_pdf_bytes(pdf_bytes, file.filename):
+            raise HTTPException(status_code=400, detail="Invalid PDF file")
+
+        # Create a temporary file to process the PDF
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+            tmp_file.write(pdf_bytes)
+            tmp_file.flush()
+            
+            try:
+                # Extract text from PDF
+                chunks = read_pdf(tmp_file.name, source=file.filename)
+                
+                # Store chunks in ChromaDB
+                collection = store_chunks_in_chromadb(chunks, profileID, document_id)
+                
+                return success_response(FileUploadResponse(
+                    document_id=document_id,
+                    collection_id=profileID,
+                    status="completed",
+                    filename=file.filename,
+                    detail="Document processed successfully",
+                    chunks_created=len(chunks)
+                ))
+            finally:
+                # Clean up temporary file
+                os.unlink(tmp_file.name)
+                
     except Exception as e:
-        logger.error(f"Error processing document {getattr(file, 'filename', 'unknown')}: {str(e)}", exc_info=True)
-        return error_response(f"Error processing document: {str(e)}", 500)
+        logger.error(f"Error processing document: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error processing document: {str(e)}")
 
 @router.post("/delete",
             summary="Delete a ChromaDB collection by name",
@@ -114,4 +114,37 @@ async def delete_collection_endpoint(request: DeleteCollectionRequest = Body(...
     except Exception as e:
         logger.error(f"Error deleting collection {getattr(request, 'collection_name', 'unknown')}: {str(e)}", exc_info=True)
         return error_response(f"Error deleting collection: {str(e)}", 500)
+
+@router.post("/delete-file",
+            summary="Delete a specific file from a ChromaDB collection",
+            response_model=DeleteCollectionResponse,
+            responses={
+                404: {"model": ErrorResponse, "description": "Collection or file not found"},
+                422: {"model": ErrorResponse, "description": "Validation Error"},
+                500: {"model": ErrorResponse, "description": "Internal Server Error"}
+            }
+)
+async def delete_file_from_collection_endpoint(request: DeleteFileRequest = Body(...)):
+    try:
+        logger.info(f"Attempting to delete file {request.file_id} from collection: {request.collection_name}")
+        
+        chroma_client = chromadb.PersistentClient(path="chromadb_store")
+        collection = chroma_client.get_collection(name=request.collection_name)
+        
+        # Delete all chunks associated with this file_id
+        collection.delete(
+            where={"file_id": request.file_id}
+        )
+        
+        logger.info(f"Successfully deleted file {request.file_id} from collection: {request.collection_name}")
+        return success_response(DeleteCollectionResponse(
+            collection_name=request.collection_name,
+            detail=f"File '{request.file_id}' has been successfully deleted from collection '{request.collection_name}'."
+        ))
+    except ValueError as ve:
+        logger.error(f"Collection or file not found: {str(ve)}", exc_info=True)
+        return error_response("Collection or file not found", 404)
+    except Exception as e:
+        logger.error(f"Error deleting file from collection: {str(e)}", exc_info=True)
+        return error_response(f"Error deleting file: {str(e)}", 500)
 

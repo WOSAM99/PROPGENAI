@@ -14,3 +14,4 @@ uploads/
 .qodo
 .cursor
 ragenv/
+/chromadb_store/

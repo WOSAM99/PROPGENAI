@@ -1,7 +1,7 @@
 import os
 import uvicorn
 import multiprocessing
-from app.config import settings  # Import your FastAPI settings
+from app.config import settings  # Import from config.py file
 
 ENV = settings.ENVIRONMENT.lower()
 
@@ -14,7 +14,10 @@ elif ENV == "production":
     log_level = "warning"
     workers = multiprocessing.cpu_count() * 2 + 1
 else:
-    raise ValueError(f"Unknown APP_ENV: {ENV}")
+    reload = False
+    log_level = "info"
+    workers = 1
+    print(f"Warning: Unknown environment {ENV}, using default configuration")
 
 if __name__ == "__main__":
     uvicorn.run(

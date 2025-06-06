@@ -54,30 +54,40 @@ class JWTAuth:
         Raises:
             HTTPException: If token is invalid or missing required data
         """
+        logger.info(f"🔍 JWT VALIDATION STARTED")
+        logger.info(f"🔑 Received auth_header: {auth_header}")
+        
         if not auth_header:
-            logger.error("No authorization header found")
+            logger.error("❌ JWT VALIDATION FAILED: No authorization header found")
             raise HTTPException(status_code=403, detail="No authorization header found")
         
         try:
             scheme, token = auth_header.split()
+            logger.info(f"🔧 Parsed scheme: '{scheme}', token length: {len(token) if token else 0}")
         except ValueError:
-            logger.error("Invalid authorization header format")
+            logger.error("❌ JWT VALIDATION FAILED: Invalid authorization header format")
             raise HTTPException(status_code=403, detail="Invalid authorization header format")
 
         if scheme.lower() != "bearer":
-            logger.error("Invalid authentication scheme")
+            logger.error(f"❌ JWT VALIDATION FAILED: Invalid authentication scheme: '{scheme}'")
             raise HTTPException(status_code=403, detail="Invalid authentication scheme")
+
+        logger.info(f"🔐 JWT Token (first 20 chars): {token[:20]}...")
+        logger.info(f"🔧 Using JWT_SECRET_KEY (first 10 chars): {JWT_SECRET_KEY[:10]}...")
+        logger.info(f"🔧 Using JWT_ALGORITHM: {JWT_ALGORITHM}")
 
         try:
             payload = JWTAuth.decrypt_token(token)
-            logger.info(f"payload: {payload}")
+            logger.info(f"✅ JWT VALIDATION SUCCESS!")
+            logger.info(f"📋 Decoded payload: {payload}")
             
             # TODO: Add validation for payload for e.g. user_id or domain
                 
             return payload
             
         except HTTPException:
+            logger.error("❌ JWT VALIDATION FAILED: HTTPException during decryption")
             raise
         except Exception as e:
-            logger.error(f"Token validation error: {str(e)}")
+            logger.error(f"❌ JWT VALIDATION FAILED: Unexpected error during validation: {str(e)}")
             raise HTTPException(status_code=403, detail="Invalid token")

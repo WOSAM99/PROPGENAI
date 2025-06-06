@@ -68,7 +68,23 @@ class DeleteCollectionRequest(BaseModel):
 
 class DeleteCollectionResponse(BaseModel):
     collection_name: str
-    detail: str 
+    detail: str
+
+class DeleteFileRequest(BaseModel):
+    collection_name: str
+    file_id: str  # This will be the document_id from Supabase
+
+    @validator('collection_name')
+    def validate_collection_name(cls, v):
+        if not v:
+            raise ValueError('collection_name cannot be empty')
+        return v
+
+    @validator('file_id')
+    def validate_file_id(cls, v):
+        if not v:
+            raise ValueError('file_id cannot be empty')
+        return v
 
 def validate_collection_name(collection_name: str) -> bool:
     """

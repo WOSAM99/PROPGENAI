@@ -1,0 +1,812 @@
+{
+	"info": {
+		"_postman_id": "rag-api-collection-2024",
+		"name": "RAG Document Interaction API",
+		"description": "Complete API collection for RAG-based document interaction system with profiles, document upload, chat/query, and system prompts management",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Exchange Supabase Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"supabase_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/exchange-supabase-token",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"exchange-supabase-token"
+							]
+						},
+						"description": "Exchange Supabase access token for backend JWT token"
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"supabase_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/auth/exchange-supabase-token",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"auth",
+										"exchange-supabase-token"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n  \"success\": true,\n  \"data\": {\n    \"access_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"token_type\": \"bearer\"\n  }\n}"
+						}
+					]
+				},
+				{
+					"name": "Create Direct JWT Token (Deprecated)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"user_id\": \"550e8400-e29b-41d4-a716-446655440000\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/token",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"token"
+							]
+						},
+						"description": "Create JWT token directly from user_id (deprecated, for development only)"
+					}
+				}
+			],
+			"description": "Authentication endpoints for JWT token management"
+		},
+		{
+			"name": "Profile Management",
+			"item": [
+				{
+					"name": "Create Profile",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Research Project\",\n  \"description\": \"Documents for my AI research project\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/profiles",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profiles"
+							]
+						},
+						"description": "Create a new profile for organizing documents"
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Research Project\",\n  \"description\": \"Documents for my AI research project\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/profiles",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"profiles"
+									]
+								}
+							},
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"550e8400-e29b-41d4-a716-446655440001\",\n    \"name\": \"Research Project\",\n    \"description\": \"Documents for my AI research project\",\n    \"document_count\": 0,\n    \"created_at\": \"2024-01-26T10:00:00Z\"\n  }\n}"
+						}
+					]
+				},
+				{
+					"name": "Get All Profiles",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/profiles",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profiles"
+							]
+						},
+						"description": "Get list of all profiles for the authenticated user"
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/profiles",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"profiles"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"550e8400-e29b-41d4-a716-446655440001\",\n      \"name\": \"Research Project\",\n      \"description\": \"Documents for my AI research project\",\n      \"document_count\": 5,\n      \"created_at\": \"2024-01-26T10:00:00Z\"\n    }\n  ]\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Profile by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/profiles/{{profile_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profiles",
+								"{{profile_id}}"
+							]
+						},
+						"description": "Get detailed information about a specific profile"
+					}
+				},
+				{
+					"name": "Update Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Research Project\",\n  \"description\": \"Updated description for my AI research project\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/profiles/{{profile_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profiles",
+								"{{profile_id}}"
+							]
+						},
+						"description": "Update an existing profile"
+					}
+				},
+				{
+					"name": "Delete Profile",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/profiles/{{profile_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profiles",
+								"{{profile_id}}"
+							]
+						},
+						"description": "Delete a profile and all associated documents"
+					}
+				},
+				{
+					"name": "Get Profile Documents",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/profiles/{{profile_id}}/documents",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profiles",
+								"{{profile_id}}",
+								"documents"
+							]
+						},
+						"description": "Get all documents associated with a specific profile"
+					}
+				}
+			],
+			"description": "Profile management endpoints for organizing documents"
+		},
+		{
+			"name": "Document Management",
+			"item": [
+				{
+					"name": "Upload Document",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "/path/to/your/document.pdf"
+								},
+								{
+									"key": "profileID",
+									"value": "{{profile_id}}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/doc/upload",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"doc",
+								"upload"
+							]
+						},
+						"description": "Upload a PDF document and create embeddings for the specified profile"
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "file",
+											"type": "file",
+											"src": "/path/to/your/document.pdf"
+										},
+										{
+											"key": "profileID",
+											"value": "550e8400-e29b-41d4-a716-446655440001",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/doc/upload",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"doc",
+										"upload"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n  \"success\": true,\n  \"data\": {\n    \"document_id\": \"550e8400-e29b-41d4-a716-446655440002\",\n    \"collection_id\": \"550e8400-e29b-41d4-a716-446655440001\",\n    \"status\": \"processing\",\n    \"filename\": \"document.pdf\",\n    \"detail\": \"Document uploaded and processing started\",\n    \"chunks_created\": 15\n  }\n}"
+						}
+					]
+				},
+				{
+					"name": "Delete Collection",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"collection_name\": \"{{profile_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/doc/delete",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"doc",
+								"delete"
+							]
+						},
+						"description": "Delete a ChromaDB collection (all embeddings for a profile)"
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"collection_name\": \"550e8400-e29b-41d4-a716-446655440001\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/doc/delete",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"doc",
+										"delete"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n  \"success\": true,\n  \"data\": {\n    \"collection_name\": \"550e8400-e29b-41d4-a716-446655440001\",\n    \"detail\": \"Collection '550e8400-e29b-41d4-a716-446655440001' has been successfully deleted.\"\n  }\n}"
+						}
+					]
+				}
+			],
+			"description": "Document upload and management endpoints"
+		},
+		{
+			"name": "Chat & Query",
+			"item": [
+				{
+					"name": "Query RAG Pipeline",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"query\": \"What are the main findings in the research documents?\",\n  \"profile_id\": \"{{profile_id}}\",\n  \"k_retrieval\": 3,\n  \"retriever_filter\": {\n    \"source\": \"document.pdf\"\n  },\n  \"system_prompt\": \"You are a helpful research assistant. Analyze the provided documents and give detailed, accurate responses.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/chat/query",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"chat",
+								"query"
+							]
+						},
+						"description": "Query the RAG pipeline with user prompt and profile context"
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"query\": \"What are the main findings in the research documents?\",\n  \"profile_id\": \"550e8400-e29b-41d4-a716-446655440001\",\n  \"k_retrieval\": 3,\n  \"system_prompt\": \"You are a helpful research assistant.\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/chat/query",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"chat",
+										"query"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n  \"success\": true,\n  \"data\": {\n    \"answer\": \"Based on the research documents, the main findings include...\",\n    \"source_documents\": [\n      {\n        \"page_content\": \"Relevant content from document...\",\n        \"metadata\": {\n          \"source\": \"document.pdf\",\n          \"page\": 1\n        }\n      }\n    ],\n    \"profile_id\": \"550e8400-e29b-41d4-a716-446655440001\"\n  }\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Chat History",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/chat/history/{{profile_id}}?limit=20&offset=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"chat",
+								"history",
+								"{{profile_id}}"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "20"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							]
+						},
+						"description": "Get chat history for a specific profile"
+					}
+				},
+				{
+					"name": "Clear Chat History",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/chat/history/{{profile_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"chat",
+								"history",
+								"{{profile_id}}"
+							]
+						},
+						"description": "Clear all chat history for a specific profile"
+					}
+				}
+			],
+			"description": "Chat and query endpoints for RAG interactions"
+		},
+		{
+			"name": "System Prompts",
+			"item": [
+				{
+					"name": "Create System Prompt",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Research Assistant\",\n  \"prompt_text\": \"You are a helpful research assistant. Analyze the provided documents carefully and give detailed, accurate responses based on the content. Always cite your sources when possible.\",\n  \"is_default\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/system-prompts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"system-prompts"
+							]
+						},
+						"description": "Create a new system prompt template"
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Research Assistant\",\n  \"prompt_text\": \"You are a helpful research assistant...\",\n  \"is_default\": false\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/system-prompts",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"system-prompts"
+									]
+								}
+							},
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"550e8400-e29b-41d4-a716-446655440003\",\n    \"name\": \"Research Assistant\",\n    \"prompt_text\": \"You are a helpful research assistant...\",\n    \"is_default\": false,\n    \"created_at\": \"2024-01-26T10:00:00Z\"\n  }\n}"
+						}
+					]
+				},
+				{
+					"name": "Get All System Prompts",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/system-prompts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"system-prompts"
+							]
+						},
+						"description": "Get list of all available system prompts"
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/system-prompts",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"system-prompts"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"550e8400-e29b-41d4-a716-446655440003\",\n      \"name\": \"Research Assistant\",\n      \"prompt_text\": \"You are a helpful research assistant...\",\n      \"is_default\": false\n    },\n    {\n      \"id\": \"550e8400-e29b-41d4-a716-446655440004\",\n      \"name\": \"Default Assistant\",\n      \"prompt_text\": \"You are a helpful AI assistant...\",\n      \"is_default\": true\n    }\n  ]\n}"
+						}
+					]
+				},
+				{
+					"name": "Update System Prompt",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Research Assistant\",\n  \"prompt_text\": \"You are an expert research assistant with deep knowledge...\",\n  \"is_default\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/system-prompts/{{prompt_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"system-prompts",
+								"{{prompt_id}}"
+							]
+						},
+						"description": "Update an existing system prompt"
+					}
+				},
+				{
+					"name": "Delete System Prompt",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/system-prompts/{{prompt_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"system-prompts",
+								"{{prompt_id}}"
+							]
+						},
+						"description": "Delete a system prompt"
+					}
+				}
+			],
+			"description": "System prompts management for customizing AI responses"
+		},
+		{
+			"name": "Test Endpoints",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/test/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"test",
+								"health"
+							]
+						},
+						"description": "Basic health check endpoint"
+					}
+				}
+			],
+			"description": "Test and health check endpoints"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string",
+			"description": "Base URL for the API server"
+		},
+		{
+			"key": "jwt_token",
+			"value": "",
+			"type": "string",
+			"description": "JWT token for authentication - set this after login"
+		},
+		{
+			"key": "profile_id",
+			"value": "550e8400-e29b-41d4-a716-446655440001",
+			"type": "string",
+			"description": "Sample profile ID for testing"
+		},
+		{
+			"key": "prompt_id",
+			"value": "550e8400-e29b-41d4-a716-446655440003",
+			"type": "string",
+			"description": "Sample system prompt ID for testing"
+		}
+	]
+} 

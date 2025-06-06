@@ -11,9 +11,20 @@ from typing import List, Dict
 from dotenv import load_dotenv
 import pymupdf
 from fastapi import HTTPException
+from datetime import datetime
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 load_dotenv()
-genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
+
+# Handle Google API key gracefully
+google_api_key = os.environ.get("GOOGLE_API_KEY", "")
+if google_api_key:
+    genai.configure(api_key=google_api_key)
+else:
+    print("Warning: GOOGLE_API_KEY not set. Google AI features will be disabled.")
 
 def parse_pdfs_to_markdown(folder_path, save_output=True):
     all_markdown = []
@@ -68,6 +79,13 @@ def chunk_by_headings(markdown_docs):
     return chunks
 
 def create_google_embeddings(texts, model="text-embedding-004", dim=768):
+    # Check if Google API key is configured
+    if not google_api_key:
+        raise HTTPException(
+            status_code=500, 
+            detail="Google API key not configured. Cannot create embeddings."
+        )
+    
     embeddings = []
     for i, text in enumerate(texts):
         try:
@@ -82,31 +100,67 @@ def create_google_embeddings(texts, model="text-embedding-004", dim=768):
             embeddings.append([0.0] * dim)
     return embeddings
 
-def store_chunks_in_chromadb(chunks: List[Dict], collection_name: str):
+def store_chunks_in_chromadb(chunks: List[Dict], collection_name: str, document_id: str):
+    """
+    Store document chunks in ChromaDB.
+    Args:
+        chunks: List of dictionaries containing text chunks and metadata
+        collection_name: Name of the collection (profile_id)
+        document_id: Unique identifier for the document from Supabase
+    """
     if not collection_name:
-        # Log this error as well for server-side tracking
-        # logger.error("Attempted to store chunks without a collection_name (profileID).") 
-        # Assuming logger is configured in this file or globally
         raise HTTPException(status_code=400, detail="profileID (collection_name) is required to store chunks.")
 
+    if not document_id:
+        raise HTTPException(status_code=400, detail="document_id is required to store chunks.")
+
     texts = [chunk["text"] for chunk in chunks]
-    metadatas = [{"source": chunk.get("source", "unknown")} for chunk in chunks]
-    ids = [f"chunk_{i}" for i in range(len(chunks))]
+    metadatas = [{
+        "source": chunk.get("source", "unknown"),
+        "file_id": document_id,
+        "upload_timestamp": datetime.utcnow().isoformat()
+    } for chunk in chunks]
+    ids = [f"{document_id}_chunk_{i}" for i in range(len(chunks))]
     embeddings = create_google_embeddings(texts)
 
     chroma_client = chromadb.PersistentClient(path="chromadb_store")
 
     collection = chroma_client.get_or_create_collection(name=collection_name)
     collection.add(documents=texts, embeddings=embeddings, metadatas=metadatas, ids=ids)
-    print(f"Stored {len(texts)} chunks in ChromaDB collection: {collection_name}")
+    print(f"Stored {len(texts)} chunks in ChromaDB collection: {collection_name} for document: {document_id}")
     return collection
 
-def read_pdf(pdf_bytes):
-    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
-    markdown_text = pymupdf4llm.to_markdown(doc, write_images=False)
-    if not markdown_text.strip():
-        raise HTTPException(status_code=422, detail="No text content could be extracted from the PDF.")
-    return markdown_text
+def read_pdf(file_path: str, source: str = None) -> List[Dict]:
+    """
+    Read a PDF file and convert it to markdown chunks.
+    Args:
+        file_path: Path to the PDF file
+        source: Original filename or source identifier
+    Returns:
+        List of dictionaries containing text chunks and metadata
+    """
+    try:
+        # Convert PDF to markdown
+        markdown_text = pymupdf4llm.to_markdown(file_path)
+        if not markdown_text.strip():
+            raise HTTPException(status_code=422, detail="No text content could be extracted from the PDF.")
+        
+        # Create markdown document with source information
+        markdown_docs = [{
+            "filename": source or os.path.basename(file_path),
+            "markdown": markdown_text
+        }]
+        
+        # Chunk the markdown text
+        chunks = chunk_by_headings(markdown_docs)
+        
+        if not chunks:
+            raise HTTPException(status_code=422, detail="No chunks could be created from the PDF content.")
+        
+        return chunks
+    except Exception as e:
+        logger.error(f"Error reading PDF {file_path}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
 
 def delete_collection_from_chromadb(collection_name: str):
     """
