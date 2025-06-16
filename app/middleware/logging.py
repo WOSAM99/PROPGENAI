@@ -1,8 +1,8 @@
 import time
 import json
-from loguru import logger
-from fastapi import Request
-from starlette.responses import Response
+from loguru import logger # type: ignore
+from fastapi import Request # type: ignore  
+from starlette.responses import Response # type: ignore
 
 async def log_requests_middleware(request: Request, call_next):
     """Enhanced middleware to log API requests with detailed debugging info"""

@@ -1,25 +1,29 @@
 import os
-import google.generativeai as genai
-from langchain_core.embeddings import Embeddings
-from langchain_chroma import Chroma
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.documents import Document
-from langgraph.graph import START, StateGraph
-from typing_extensions import List, TypedDict, Optional
-from typing import Any, Dict
-from dotenv import load_dotenv
-from fastapi import HTTPException
 import logging
+from typing import Any, Dict, List, Optional
+from typing_extensions import TypedDict, Annotated
 
-# Configure logging
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+import google.generativeai as genai # type: ignore
+from dotenv import load_dotenv # type: ignore
+from fastapi import HTTPException # type: ignore
+
+from langchain_core.embeddings import Embeddings # type: ignore
+from langchain_core.documents import Document # type: ignore
+from langchain_core.prompts import ChatPromptTemplate # type: ignore
+from langchain_chroma import Chroma # type: ignore
+from langchain_google_genai import ChatGoogleGenerativeAI # type: ignore
+from langgraph.graph import START, StateGraph # type: ignore
+from langgraph.graph.message import add_messages # type: ignore
+
+# Import conversation history functions
+try:
+    from .conv import fetch_conversation_as_context_string
+except ImportError:
+    def fetch_conversation_as_context_string(profile_id: str, limit: int = 10) -> str:
+        return "No conversation history available."
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 # Configure Google API
 google_api_key = os.getenv("GOOGLE_API_KEY")
@@ -37,7 +41,7 @@ class GoogleEmbeddings(Embeddings):
                 task_type="retrieval_document"
             )['embedding'] for text in texts]
         except Exception as e:
-            logger.error(f"Error embedding documents: {e}", exc_info=True)
+            logger.error(f"Error embedding documents: {e}")
             raise HTTPException(status_code=500, detail=f"Error embedding documents: {str(e)}")
 
     def embed_query(self, text):
@@ -48,88 +52,131 @@ class GoogleEmbeddings(Embeddings):
                 task_type="retrieval_query"
             )['embedding']
         except Exception as e:
-            logger.error(f"Error embedding query: {e}", exc_info=True)
+            logger.error(f"Error embedding query: {e}")
             raise HTTPException(status_code=500, detail=f"Error embedding query: {str(e)}")
 
 # Global embedding model instance
 embedding_model = GoogleEmbeddings()
 
-# Default system prompt
-DEFAULT_SYSTEM_PROMPT = """
-You are a helpful AI assistant. 
+# System prompt with conversation history support
+DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant engaging in a conversation with the user.
+
+Previous Conversation History:
+{conversation_history}
 
 Document Context:
 {context}
 
-Guidelines:
-- Use the document context to provide accurate and relevant answers
-- If you can't find relevant information in the context, say so clearly
-- Don't make up information that isn't in the provided documents
-- Be concise and helpful in your responses
-"""
+You are an experienced freelancer writing short, professional project proposals based on:
 
+a job posting provided as input
+
+relevant document context provided from your knowledge base (prior projects, experience, past work, relevant expertise)
+
+Your goal:
+Generate a clear, concise proposal that explains how you would approach this project and what kind of work/technologies/processes would be involved.
+
+Guidelines:
+
+Keenly understand the user query.
+
+- If the user writes casual greetings or small-talk (e.g. “hi”, “thanks”), reply normally.
+- **Only switch to “proposal mode” when the user includes everything below**:
+  • At least one project_description  
+  • Optionally documents
+Start by briefly mentioning your understanding of the project and the type of workflow it will involve.
+
+Clearly mention the key technologies that will likely be used.
+
+Casually state that you have done similar work in the past (without sounding sales-y or over-enthusiastic).
+
+Keep the tone professional and neutral—do not sound like AI, do not sound extremely eager.
+
+Do not elaborate too much on why you are the perfect fit—just show you understand what is needed and how you'd approach it.
+
+End with this exact sentence: "Let’s jump on a call so I can walk you through the approach and timelines."
+
+Example tone: Think of how an experienced freelancer would respond on Upwork or LinkedIn DM—not too long, not too short, no fluff.
+
+Format:
+
+1 sentence overview of project understanding
+
+
+1 sentence mentioning the technologies involved
+
+1 sentence saying you've worked on similar things before
+
+End with the similar sentence as provided above.
+
+Example Output:
+"I see you’re looking to build a document search and retrieval system integrated with an LLM for generating responses. The workflow would likely involve document ingestion, vector storage, similarity search, and response generation. I’d approach this using ChromaDB for storage and retrieval, and LLM-based prompt templating for responses. I’ve worked on similar RAG pipelines recently and can bring that experience here. Let’s jump on a call so I can walk you through the approach and timelines."
+
+
+
+
+"""
 class State(TypedDict):
     question: str
     context: List[Document]
     answer: str
     retriever: Any
-    prompt_template: Any
+    prompt_template: ChatPromptTemplate
+    # messages: Annotated[list, add_messages]
+    profile_id: str
+    conversation_history: str
 
 def retrieve_documents(state: State):
-    """Node function to retrieve relevant documents."""
+    """Retrieve relevant documents from the vector store."""
     try:
-        logger.info(f"Retrieving documents for question: {state['question']}")
         retrieved_docs = state["retriever"].invoke(state["question"])
-        
         logger.info(f"Retrieved {len(retrieved_docs)} documents")
-        for i, doc in enumerate(retrieved_docs):
-            logger.info(f"Document {i+1} metadata: {doc.metadata}")
-            logger.debug(f"Document {i+1} content preview: {doc.page_content[:100]}...")
-
+        
         return {
             "context": retrieved_docs,
             "question": state["question"],
             "retriever": state["retriever"],
-            "prompt_template": state["prompt_template"]
+            "prompt_template": state["prompt_template"],
+            # "messages": state["messages"],
+            "profile_id": state["profile_id"],
+            "conversation_history": state["conversation_history"]
         }
     except Exception as e:
         logger.error(f"Error in retrieve_documents: {e}")
         raise
 
 def generate_answer(state: State):
-    """Node function to generate answer using retrieved documents."""
+    """Generate answer using retrieved documents and conversation history."""
     try:
-        # Prepare document context
         docs_content = "\n\n".join(doc.page_content for doc in state["context"])
+        conversation_history = state.get("conversation_history", "No previous conversation.")
         
-        logger.info("Preparing LLM input:")
-        logger.info(f"- Document Context Length: {len(docs_content)} characters")
-        logger.info(f"- Number of Documents: {len(state['context'])}")
-        logger.info(f"- Question: {state['question']}")
-
-        # Create messages with context
+        # Create messages with context and conversation history
         messages = state["prompt_template"].invoke({
             "question": state["question"],
-            "context": docs_content
+            "context": docs_content,
+            "conversation_history": conversation_history
         })
 
         # Generate response
         llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest")
         response = llm.invoke(messages)
         
-        logger.info(f"Generated response length: {len(response.content)} characters")
-        logger.debug(f"Response preview: {response.content[:200]}...")
+        logger.info(f"Generated response: {len(response.content)} characters")
 
         return {
             "answer": response.content,
             "context": state["context"],
-            "question": state["question"]
+            "question": state["question"],
+            # "messages": state["messages"],
+            "profile_id": state["profile_id"],
+            "conversation_history": state["conversation_history"]
         }
     except Exception as e:
-        logger.error(f"Error in generate_answer: {e}", exc_info=True)
+        logger.error(f"Error in generate_answer: {e}")
         raise
 
-# Define the graph
+# Build the RAG graph
 graph_builder = StateGraph(State)
 graph_builder.add_node("retrieve_documents", retrieve_documents)
 graph_builder.add_node("generate_answer", generate_answer)
@@ -140,21 +187,34 @@ compiled_rag_graph = graph_builder.compile()
 def get_rag_response(
     query: str,
     collection_name: str,
+    profile_id: str,
     k_retrieval: int = 6,
     retriever_filter: Optional[Dict] = None,
-    custom_system_prompt: Optional[str] = None
+    custom_system_prompt: Optional[str] = None,
+    conversation_limit: int = 10
 ) -> Dict:
     """
-    Generate a response using RAG with document context.
+    Generate a response using RAG with document context and conversation history.
+    
+    Args:
+        query: User's question
+        collection_name: ChromaDB collection name
+        profile_id: Profile ID to fetch conversation history
+        k_retrieval: Number of documents to retrieve
+        retriever_filter: Optional filter for document retrieval
+        custom_system_prompt: Optional custom system prompt
+        conversation_limit: Number of previous messages to include
     """
-    logger.info(f"Starting RAG response generation:")
-    logger.info(f"- Query: {query}")
-    logger.info(f"- Collection: {collection_name}")
-    logger.info(f"- K retrieval: {k_retrieval}")
-    logger.info(f"- Filter: {retriever_filter}")
+    logger.info(f"RAG request - Query: {query[:50]}..., Collection: {collection_name}, Profile: {profile_id}")
     
     try:
-        # Set up the vector store retriever
+        # Fetch conversation history
+        conversation_history = fetch_conversation_as_context_string(
+            profile_id=profile_id, 
+            limit=conversation_limit
+        )   
+        
+        # Set up vector store retriever
         vectordb = Chroma(
             collection_name=collection_name,
             persist_directory="chromadb_store",
@@ -168,33 +228,37 @@ def get_rag_response(
             }
         )
 
-        # Create the system prompt
+        # Create system prompt
         system_prompt = custom_system_prompt + "\n\n" + DEFAULT_SYSTEM_PROMPT if custom_system_prompt else DEFAULT_SYSTEM_PROMPT
         
+        # Ensure required placeholders exist
         if "{context}" not in system_prompt:
-            logger.warning("System prompt missing {context} placeholder. Adding default context section.")
             system_prompt += "\n\nDocument Context:\n{context}"
+        if "{conversation_history}" not in system_prompt:
+            system_prompt = "Previous Conversation History:\n{conversation_history}\n\n" + system_prompt
 
-        # Create the chat prompt template
+        # Create chat prompt template
         prompt_template = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
             ("human", "{question}")
         ])
 
-        # Set up the initial state
+        # Set up initial state
         initial_state = {
             "question": query,
             "retriever": retriever,
             "prompt_template": prompt_template,
             "context": [],
-            "answer": ""
+            "answer": "",
+            # "messages": [],
+            "profile_id": profile_id,
+            "conversation_history": conversation_history
         }
 
-        # Execute the RAG pipeline
-        logger.info("Executing RAG pipeline...")
+        # Execute RAG pipeline
         result_state = compiled_rag_graph.invoke(initial_state)
 
-        # Prepare the response
+        # Prepare response
         source_documents = [
             {
                 "page_content": doc.page_content,
@@ -207,46 +271,42 @@ def get_rag_response(
             "answer": result_state.get("answer", "No answer generated."),
             "source_documents": source_documents,
             "collection_used": collection_name,
-            "num_source_documents": len(source_documents)
+            "num_source_documents": len(source_documents),
+            "profile_id": profile_id,
+            "conversation_history_used": len(conversation_history) > 0,
+            "conversation_history_length": len(conversation_history)
         }
 
-        logger.info("RAG response generated successfully:")
-        logger.info(f"- Answer length: {len(response['answer'])} characters")
-        logger.info(f"- Source documents used: {len(source_documents)}")
-
+        logger.info(f"RAG response generated - Documents: {len(source_documents)}, History used: {response['conversation_history_used']}")
         return response
 
-    except HTTPException as he:
-        logger.error(f"HTTP Exception in RAG response: {he}")
-        raise he
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error in RAG response: {str(e)}", exc_info=True)
+        logger.error(f"Error in RAG response: {str(e)}")
         raise HTTPException(status_code=500, detail=f"RAG processing error: {str(e)}")
 
 if __name__ == "__main__":
     # Example usage
+    logger.info("Running RAG example...")
+    example_collection = "google_embed_chunks"
+    
     try:
-        logging.basicConfig(level=logging.INFO)
-        logger.info("Running RAG example...")
+        vectordb = Chroma(collection_name=example_collection, persist_directory="chromadb_store", embedding_function=embedding_model)
+        vectordb.get()
         
-        example_collection = "google_embed_chunks"
+        print(f"Testing collection '{example_collection}'...")
+        test_query = "who is rajeev menon"
+        response = get_rag_response(
+            query=test_query, 
+            collection_name=example_collection, 
+            profile_id="test-profile", 
+            conversation_limit=5
+        )
         
-        try:
-            # Test if collection exists
-            vectordb = Chroma(collection_name=example_collection, persist_directory="chromadb_store", embedding_function=embedding_model)
-            vectordb.get()
-            
-            print(f"\nQuerying collection '{example_collection}'...")
-            specific_query = "who is rajeev menon"
-            response_specific = get_rag_response(query=specific_query, collection_name=example_collection)
-            print(f"Answer for '{specific_query}': {response_specific['answer']}")
-            if response_specific['source_documents']:
-                print(f"Sources: {[doc['metadata'].get('source', 'Unknown source') for doc in response_specific['source_documents']]}")
-            else:
-                print("No source documents found.")
-
-        except Exception as e:
-            logger.warning(f"Skipping query for '{example_collection}' as it might not exist: {e}")
-
+        print(f"Answer: {response['answer']}")
+        print(f"Documents found: {response['num_source_documents']}")
+        print(f"Conversation history used: {response['conversation_history_used']}")
+        
     except Exception as e:
-        logger.error(f"Error in RAG example: {e}", exc_info=True) 
+        logger.warning(f"Test skipped - collection may not exist: {e}") 

@@ -41,20 +41,29 @@ async def query_rag_pipeline(
     - **system_prompt**: An alternative system prompt to guide the LLM. If not provided, a default is used.
     """
     try:
+        # Authentication temporarily disabled
         # Get user_id from the JWT payload (set by middleware)
-        current_user_id = req.state.jwt_payload.get("user_id")
-        if not current_user_id:
-            raise HTTPException(status_code=403, detail="User ID missing in token")
+        # current_user_id = req.state.jwt_payload.get("user_id")
+        # if not current_user_id:
+        #     raise HTTPException(status_code=403, detail="User ID missing in token")
             
-        logger.info(f"Chat query request for user_id: {current_user_id}, profile_id: {request.profile_id}")
+        # logger.info(f"Chat query request for user_id: {current_user_id}, profile_id: {request.profile_id}")
+        logger.info(f"Chat query request for profile_id: {request.profile_id}")
         
         rag_result = get_rag_response(
             query=request.query,
             collection_name=request.profile_id,
+            profile_id=request.profile_id,
             k_retrieval=request.k_retrieval,
             retriever_filter=request.retriever_filter,
             custom_system_prompt=request.system_prompt
         )   
+
+        # Log conversation history usage
+        logger.info(f"RAG response generated:")
+        logger.info(f"- Conversation history used: {rag_result.get('conversation_history_used', False)}")
+        logger.info(f"- Conversation history length: {rag_result.get('conversation_history_length', 0)} characters")
+        logger.info(f"- Source documents found: {rag_result.get('num_source_documents', 0)}")
 
         # Transform source_documents dicts to SourceDocument model instances if they exist
         source_docs_models = []

@@ -1,5 +1,5 @@
 from app.route import setup_routes
-from fastapi import FastAPI
+from fastapi import FastAPI # type: ignore
 from app.middleware import setup_middlewares
 from app.config import settings
 from app.logger import setup_logger
