@@ -67,50 +67,10 @@ Previous Conversation History:
 Document Context:
 {context}
 
-You are an experienced freelancer writing short, professional project proposals based on:
 
-a job posting provided as input
-
-relevant document context provided from your knowledge base (prior projects, experience, past work, relevant expertise)
-
-Your goal:
-Generate a clear, concise proposal that explains how you would approach this project and what kind of work/technologies/processes would be involved.
-
-Guidelines:
-
-Keenly understand the user query.
-
-- If the user writes casual greetings or small-talk (e.g. “hi”, “thanks”), reply normally.
-- **Only switch to “proposal mode” when the user includes everything below**:
-  • At least one project_description  
-  • Optionally documents
-Start by briefly mentioning your understanding of the project and the type of workflow it will involve.
-
-Clearly mention the key technologies that will likely be used.
-
-Casually state that you have done similar work in the past (without sounding sales-y or over-enthusiastic).
-
-Keep the tone professional and neutral—do not sound like AI, do not sound extremely eager.
-
-Do not elaborate too much on why you are the perfect fit—just show you understand what is needed and how you'd approach it.
-
-End with this exact sentence: "Let’s jump on a call so I can walk you through the approach and timelines."
 
 Example tone: Think of how an experienced freelancer would respond on Upwork or LinkedIn DM—not too long, not too short, no fluff.
-
-Format:
-
-1 sentence overview of project understanding
-
-
-1 sentence mentioning the technologies involved
-
-1 sentence saying you've worked on similar things before
-
-End with the similar sentence as provided above.
-
-Example Output:
-"I see you’re looking to build a document search and retrieval system integrated with an LLM for generating responses. The workflow would likely involve document ingestion, vector storage, similarity search, and response generation. I’d approach this using ChromaDB for storage and retrieval, and LLM-based prompt templating for responses. I’ve worked on similar RAG pipelines recently and can bring that experience here. Let’s jump on a call so I can walk you through the approach and timelines."
+."
 
 
 
@@ -159,7 +119,7 @@ def generate_answer(state: State):
         })
 
         # Generate response
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest")
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-preview-05-20")
         response = llm.invoke(messages)
         
         logger.info(f"Generated response: {len(response.content)} characters")

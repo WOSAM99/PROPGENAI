@@ -30,7 +30,7 @@ ROLE_MAP = {
     "system": SystemMessage,
 }
 
-def fetch_conversation_history(profile_id: str = '850f1278-1a98-4205-aaea-b355353ce75e', limit: int = 10) -> List:
+def fetch_conversation_history(profile_id: str = '850f1278-1a98-4205-aaea-b355353ce75e', limit: int = 6) -> List:
     """
     Fetch conversation history from Supabase messages table for a given profile_id.
     Returns LangChain message objects.

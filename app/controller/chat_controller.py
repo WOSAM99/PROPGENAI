@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, HTTPException, Body, Request
+from fastapi import APIRouter, HTTPException, Body, Request # type: ignore
 
 # Models
 from app.model.chat_model import ChatRequest, ChatResponse, SourceDocument

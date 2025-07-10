@@ -1,5 +1,5 @@
 import os
-import uvicorn
+import uvicorn  # type: ignore
 import multiprocessing
 from app.config import settings  # Import from config.py file
 
